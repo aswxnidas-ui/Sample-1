@@ -18,9 +18,9 @@ public class CartItem {
      * @param quantity number of units (must be > 0)
      */
     public CartItem(FoodItem foodItem, int quantity) {
-        if (foodItem == null) {
-            throw new IllegalArgumentException("FoodItem cannot be null");
-        }
+        validateFoodItem(foodItem);
+        validateQuantity(quantity);
+        validateUnitPrice(foodItem.getPrice());
         this.foodItem = foodItem;
         this.quantity = quantity;
         this.unitPrice = foodItem.getPrice();
@@ -30,9 +30,9 @@ public class CartItem {
      * Constructor allowing explicit snapshot price specification.
      */
     public CartItem(FoodItem foodItem, int quantity, double unitPrice) {
-        if (foodItem == null) {
-            throw new IllegalArgumentException("FoodItem cannot be null");
-        }
+        validateFoodItem(foodItem);
+        validateQuantity(quantity);
+        validateUnitPrice(unitPrice);
         this.foodItem = foodItem;
         this.quantity = quantity;
         this.unitPrice = unitPrice;
@@ -57,13 +57,59 @@ public class CartItem {
     }
 
     public void setQuantity(int quantity) {
-        if (quantity > 0) {
-            this.quantity = quantity;
-        }
+        validateQuantity(quantity);
+        this.quantity = quantity;
+    }
+
+    public void setFoodId(int foodId) {
+        validateFoodId(foodId);
+        foodItem.setFoodId(foodId);
     }
 
     public double getUnitPrice() {
         return unitPrice;
+    }
+
+    public void setUnitPrice(double unitPrice) {
+        validateUnitPrice(unitPrice);
+        this.unitPrice = unitPrice;
+    }
+
+    CartItem copy() {
+        FoodItem foodItemCopy = new FoodItem(
+                foodItem.getFoodId(),
+                foodItem.getName(),
+                foodItem.getCategory(),
+                foodItem.getPrice(),
+                foodItem.isAvailable(),
+                foodItem.getStockQuantity()
+        );
+        return new CartItem(foodItemCopy, quantity, unitPrice);
+    }
+
+    private static void validateFoodItem(FoodItem foodItem) {
+        if (foodItem == null) {
+            throw new IllegalArgumentException("FoodItem cannot be null");
+        }
+        validateFoodId(foodItem.getFoodId());
+    }
+
+    private static void validateFoodId(int foodId) {
+        if (foodId <= 0) {
+            throw new IllegalArgumentException("Food ID must be greater than zero");
+        }
+    }
+
+    private static void validateQuantity(int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be greater than zero");
+        }
+    }
+
+    private static void validateUnitPrice(double unitPrice) {
+        if (unitPrice < 0) {
+            throw new IllegalArgumentException("Unit price cannot be negative");
+        }
     }
 
     /**

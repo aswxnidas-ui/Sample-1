@@ -11,8 +11,7 @@ import java.sql.Statement;
 
 /**
  * Data Access Object (DAO) for Student and User database persistence.
- * Maps to the unified 'users' table schema:
- * users(user_id, name, email, password, role, roll_number, department, wallet_balance).
+ * User credentials are stored in 'users'; student details are stored in 'students'.
  */
 public class UserDAO {
 
@@ -25,9 +24,11 @@ public class UserDAO {
      * @throws SQLException if a database error occurs
      */
     public Student authenticateStudent(String email, String password) throws SQLException {
-        String sql = "SELECT user_id, name, email, password, roll_number, department, wallet_balance " +
-                     "FROM users " +
-                     "WHERE email = ? AND password = ? AND role = 'STUDENT'";
+        String sql = "SELECT u.user_id, u.name, u.email, u.password, " +
+                     "s.roll_number, s.department, s.wallet_balance " +
+                     "FROM users u " +
+                     "JOIN students s ON s.student_id = u.user_id " +
+                     "WHERE u.email = ? AND u.password = ? AND u.role = 'STUDENT'";
 
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -64,30 +65,56 @@ public class UserDAO {
             return false;
         }
 
-        String sql = "INSERT INTO users (name, email, password, role, roll_number, department, wallet_balance) " +
-                     "VALUES (?, ?, ?, 'STUDENT', ?, ?, ?)";
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                String userSql = "INSERT INTO users (name, email, password, role) " +
+                                 "VALUES (?, ?, ?, 'STUDENT')";
+                int userId;
+                try (PreparedStatement userStmt = conn.prepareStatement(userSql, Statement.RETURN_GENERATED_KEYS)) {
+                    userStmt.setString(1, student.getName());
+                    userStmt.setString(2, student.getEmail());
+                    userStmt.setString(3, student.getPassword());
+                    if (userStmt.executeUpdate() != 1) {
+                        conn.rollback();
+                        return false;
+                    }
 
-        try (Connection conn = DatabaseUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-
-            stmt.setString(1, student.getName());
-            stmt.setString(2, student.getEmail());
-            stmt.setString(3, student.getPassword());
-            stmt.setString(4, student.getRollNumber());
-            stmt.setString(5, student.getDepartment());
-            stmt.setDouble(6, student.getWalletBalance());
-
-            int affectedRows = stmt.executeUpdate();
-            if (affectedRows > 0) {
-                try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
-                    if (generatedKeys.next()) {
-                        student.setUserId(generatedKeys.getInt(1));
+                    try (ResultSet generatedKeys = userStmt.getGeneratedKeys()) {
+                        if (!generatedKeys.next()) {
+                            conn.rollback();
+                            return false;
+                        }
+                        userId = generatedKeys.getInt(1);
                     }
                 }
+
+                String studentSql = "INSERT INTO students " +
+                                    "(student_id, roll_number, department, wallet_balance) " +
+                                    "VALUES (?, ?, ?, ?)";
+                try (PreparedStatement studentStmt = conn.prepareStatement(studentSql)) {
+                    studentStmt.setInt(1, userId);
+                    studentStmt.setString(2, student.getRollNumber());
+                    studentStmt.setString(3, student.getDepartment());
+                    studentStmt.setDouble(4, student.getWalletBalance());
+                    if (studentStmt.executeUpdate() != 1) {
+                        conn.rollback();
+                        return false;
+                    }
+                }
+
+                conn.commit();
+                student.setUserId(userId);
                 return true;
+            } catch (SQLException | RuntimeException e) {
+                try {
+                    conn.rollback();
+                } catch (SQLException rollbackException) {
+                    e.addSuppressed(rollbackException);
+                }
+                throw e;
             }
         }
-        return false;
     }
 
     /**
@@ -116,9 +143,11 @@ public class UserDAO {
      * @throws SQLException if a database error occurs
      */
     public Student getStudentById(int userId) throws SQLException {
-        String sql = "SELECT user_id, name, email, password, roll_number, department, wallet_balance " +
-                     "FROM users " +
-                     "WHERE user_id = ? AND role = 'STUDENT'";
+        String sql = "SELECT u.user_id, u.name, u.email, u.password, " +
+                     "s.roll_number, s.department, s.wallet_balance " +
+                     "FROM users u " +
+                     "JOIN students s ON s.student_id = u.user_id " +
+                     "WHERE u.user_id = ? AND u.role = 'STUDENT'";
 
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -141,7 +170,7 @@ public class UserDAO {
     }
 
     /**
-     * Updates the wallet balance of a student in the 'users' table.
+    * Updates the wallet balance of a student in the 'students' table.
      *
      * @param userId     student's user ID
      * @param newBalance updated balance
@@ -149,7 +178,7 @@ public class UserDAO {
      * @throws SQLException if a database error occurs
      */
     public boolean updateStudentWallet(int userId, double newBalance) throws SQLException {
-        String sql = "UPDATE users SET wallet_balance = ? WHERE user_id = ? AND role = 'STUDENT'";
+        String sql = "UPDATE students SET wallet_balance = ? WHERE student_id = ?";
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setDouble(1, newBalance);

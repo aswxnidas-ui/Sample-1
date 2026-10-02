@@ -239,6 +239,44 @@ public class AswaniModuleTest {
     }
 
     @Test
+    @DisplayName("CartItem rejects invalid values in constructors and setters")
+    public void testCartItemValidation() {
+        assertThrows(IllegalArgumentException.class, () -> new CartItem(meals, 0));
+        assertThrows(IllegalArgumentException.class, () -> new CartItem(meals, -1));
+        assertThrows(IllegalArgumentException.class, () -> new CartItem(
+                new FoodItem(0, "Invalid ID", "Meals", 10.0, true, 1), 1));
+        assertThrows(IllegalArgumentException.class, () -> new CartItem(meals, 1, -0.01));
+        assertThrows(IllegalArgumentException.class, () -> new CartItem(
+                new FoodItem(104, "Invalid Price", "Meals", -0.01, true, 1), 1));
+
+        CartItem item = new CartItem(meals, 1);
+        assertThrows(IllegalArgumentException.class, () -> item.setQuantity(0));
+        assertThrows(IllegalArgumentException.class, () -> item.setFoodId(0));
+        assertThrows(IllegalArgumentException.class, () -> item.setUnitPrice(-0.01));
+    }
+
+    @Test
+    @DisplayName("Cart item snapshots cannot mutate the cart")
+    public void testCartItemsAreDefensiveSnapshots() {
+        cart.addItem(meals, 2);
+        List<CartItem> snapshot = cart.getItems();
+        CartItem snapshotItem = snapshot.get(0);
+
+        assertThrows(UnsupportedOperationException.class, snapshot::clear);
+        snapshotItem.setQuantity(5);
+        snapshotItem.setFoodId(999);
+        snapshotItem.setUnitPrice(999.0);
+        snapshotItem.getFoodItem().setName("Changed Snapshot");
+
+        CartItem cartItem = cart.findCartItem(101);
+        assertEquals(2, cartItem.getQuantity());
+        assertEquals(101, cartItem.getFoodId());
+        assertEquals(60.0, cartItem.getUnitPrice(), 0.001);
+        assertEquals("Veg Meals", cartItem.getFoodName());
+        assertEquals(120.0, cart.getSubtotal(), 0.001);
+    }
+
+    @Test
     @DisplayName("Req 14: Empty-Cart Protection")
     public void testEmptyCartProtection() {
         CartService cartService = new CartService(testStudent, testMenuService);

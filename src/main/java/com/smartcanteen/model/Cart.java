@@ -131,13 +131,16 @@ public class Cart {
     }
 
     /**
-     * Returns an unmodifiable view of the cart items to prevent unauthorized external mutation.
-     * Shared contract: Shreya's Order module uses this to safely read items.
+     * Returns an unmodifiable list of copies so callers cannot mutate cart items.
      *
-     * @return unmodifiable List of CartItems
+     * @return unmodifiable snapshot of CartItems
      */
     public List<CartItem> getItems() {
-        return Collections.unmodifiableList(items);
+        List<CartItem> snapshots = new ArrayList<>(items.size());
+        for (CartItem item : items) {
+            snapshots.add(item.copy());
+        }
+        return Collections.unmodifiableList(snapshots);
     }
 
     /**
